@@ -3,11 +3,12 @@ uuid = "fce7a5f1-5486-4c58-95c0-c14b9119c17a"
 authors = ["Takafumi Arakaki <aka.tkf@gmail.com> and contributors"]
 version = "0.1.0-DEV"
 
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+[deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+ConcurrentCollections = "5060bff5-0b44-40c5-b522-fcd3ca5cecdd"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+DefineSingletons = "244e2a9f-e319-4986-a169-4d1fe445cd52"
+Historic = "e6ec0b50-ef98-488a-a141-280ae2eaf113"
 
 [compat]
-julia = "1"
-
-[targets]
-test = ["Test"]
+julia = "1.7"
