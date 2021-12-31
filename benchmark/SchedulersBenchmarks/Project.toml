@@ -1,0 +1,11 @@
+name = "SchedulersBenchmarks"
+uuid = "84c47252-7670-4a95-9172-43d9ab0f346b"
+authors = ["Takafumi Arakaki <aka.tkf@gmail.com> and contributors"]
+version = "0.1.0-DEV"
+
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Schedulers = "fce7a5f1-5486-4c58-95c0-c14b9119c17a"
+
+[compat]
+julia = "1"
