@@ -6,7 +6,7 @@ JULIA_REPL_CMD ?= $(JULIA)
 
 export TEST_FUNCTION_RUNNER_JL_TIMEOUT ?= 30
 
-export JULIA_LOAD_PATH = @:$(shell pwd):$(shell pwd)/test/SchedulersTests
+export JULIA_LOAD_PATH = @:$(shell pwd):$(shell pwd)/test/SchedulersTests:$(shell pwd)/benchmark/SchedulersBenchmarks
 export JULIA_PROJECT = $(shell pwd)/test
 
 .PHONY: all test test-* instantiate

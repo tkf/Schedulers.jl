@@ -2,11 +2,11 @@ module SchedulersBenchmarks
 
 using BenchmarkTools: Benchmark, BenchmarkGroup
 
-include("bench_EXAMPLE.jl")
+include("bench_fib.jl")
 
 function setup()
     suite = BenchmarkGroup()
-    suite["EXAMPLE"] = BenchEXAMPLE.setup()
+    suite["Fib"] = BenchFib.setup()
     return suite
 end
 
@@ -33,7 +33,7 @@ function setup_smoke()
 end
 
 function clear()
-    BenchEXAMPLE.clear()
+    BenchFib.clear()
 end
 
 end  # module SchedulersBenchmarks
