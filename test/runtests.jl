@@ -1,10 +1,10 @@
 import Schedulers
 
-let envbool(name) = lowercase(get(ENV, name, "false")) == "true"
-    enable_full_debugging = envbool("SCHEDULERS_JL_ENABLE_FULL_DEBUGGING")
-    enable_recording = enable_full_debugging || envbool("SCHEDULERS_JL_ENABLE_RECORDING")
-    enable_logging = enable_full_debugging || envbool("SCHEDULERS_JL_ENABLE_LOGGING")
-    enable_debugging = enable_full_debugging || envbool("SCHEDULERS_JL_ENABLE_DEBUGGING")
+let flags = map(lowercase ∘ strip, split(get(ENV, "SCHEDULERS_JL_TEST_ENABLE", ""), ","))
+    enable_full_debugging = "full" in flags
+    enable_recording = enable_full_debugging || "recording" in flags
+    enable_logging = enable_full_debugging || "logging" in flags
+    enable_debugging = enable_full_debugging || "debugging" in flags
     if enable_recording
         @info "Enable recording"
         Schedulers.Internal.Debug.enable()
