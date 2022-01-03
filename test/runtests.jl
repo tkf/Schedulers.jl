@@ -20,4 +20,4 @@ let flags = map(lowercase ∘ strip, split(get(ENV, "SCHEDULERS_JL_TEST_ENABLE",
 end
 
 using TestFunctionRunner
-TestFunctionRunner.@run
+TestFunctionRunner.@run(paths = ["../benchmark/SchedulersBenchmarks"])
