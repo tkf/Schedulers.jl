@@ -2,7 +2,7 @@ baremodule Schedulers
 
 baremodule _Prelude
 abstract type SchedulerContextFunction <: Function end
-abstract type DefaultSchedulerFunction <: Function end
+abstract type GlobalSchedulerFunction <: Function end
 using DefineSingletons: @def_singleton
 end
 
@@ -11,8 +11,8 @@ _Prelude.@def_singleton workstealing isa _Prelude.SchedulerContextFunction
 _Prelude.@def_singleton prioritized isa _Prelude.SchedulerContextFunction
 function open end
 
-_Prelude.@def_singleton default_workstealing isa _Prelude.DefaultSchedulerFunction
-_Prelude.@def_singleton default_prioritized isa _Prelude.DefaultSchedulerFunction
+_Prelude.@def_singleton global_workstealing isa _Prelude.GlobalSchedulerFunction
+_Prelude.@def_singleton global_prioritized isa _Prelude.GlobalSchedulerFunction
 
 # High-level API
 function spawn end
@@ -29,7 +29,7 @@ function current_scheduler end
 module Internal
 
 using ..Schedulers: Schedulers
-using .._Prelude: SchedulerContextFunction, DefaultSchedulerFunction
+using .._Prelude: SchedulerContextFunction, GlobalSchedulerFunction
 
 using Base.Experimental: @opaque
 using Core: OpaqueClosure
@@ -50,11 +50,11 @@ include("workstealing_scheduler.jl")
 include("prioritized_scheduler.jl")
 # include("fifo_scheduler.jl")
 include("runtime.jl")
-include("default_schedulers.jl")
+include("global_schedulers.jl")
 include("show.jl")
 
 function __init__()
-    init_default_schedulers()
+    init_global_schedulers()
 end
 
 end  # module Internal

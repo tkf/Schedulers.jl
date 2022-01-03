@@ -1,4 +1,4 @@
-function (fn::DefaultSchedulerFunction)(thunk)
+function (fn::GlobalSchedulerFunction)(thunk)
     promise = Channel{GenericTask}(1)
     function bg_waiter()  # aka bgw
         @record(:bgw_begin)
@@ -30,15 +30,15 @@ const DEFAULT_WORKSTEALING_SCHEDULER_HANDLE =
 const DEFAULT_PRIORITIZED_SCHEDULER_HANDLE =
     Ref{Union{PrioritizedScheduler,Nothing}}(nothing)
 
-schedulerof(::typeof(Schedulers.default_workstealing)) =
+schedulerof(::typeof(Schedulers.global_workstealing)) =
     DEFAULT_WORKSTEALING_SCHEDULER_HANDLE[]::WorkStealingScheduler
-schedulerof(::typeof(Schedulers.default_prioritized)) =
+schedulerof(::typeof(Schedulers.global_prioritized)) =
     DEFAULT_PRIORITIZED_SCHEDULER_HANDLE[]::PrioritizedScheduler
 
 close_if_something(x) = close(something(x))
 close_if_something(::Nothing) = nothing
 
-function init_default_schedulers()
+function init_global_schedulers()
     close_if_something(DEFAULT_WORKSTEALING_SCHEDULER_HANDLE[])
     close_if_something(DEFAULT_PRIORITIZED_SCHEDULER_HANDLE[])
     DEFAULT_WORKSTEALING_SCHEDULER_HANDLE[] = start(Schedulers.workstealing())
