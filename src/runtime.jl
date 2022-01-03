@@ -206,6 +206,11 @@ end
 function (thunk::Thunk)()
     try
         @record(:thunk_begin)
+        if current_task().sticky
+            msg = "FATAL: copy_stack not supported"
+            @error(msg)
+            error(msg)
+        end
         @atomic :monotonic thunk.state = TaskStates.STARTED
         y = thunk.f()
         @record(:thunk_returning)
