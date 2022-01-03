@@ -51,7 +51,6 @@ end
 
 Historic.@define Debug
 using .Debug: @record
-Debug.isrecording() = true
 
 """
     @yield_unsafe expression
