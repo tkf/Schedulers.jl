@@ -101,7 +101,7 @@ mutable struct Thunk{Scheduler<:AbstractScheduler}
     @const f::OpaqueClosure{Tuple{}}
     @const scheduler::Scheduler
     priority::PriorityInt
-    worker::Union{Nothing,Worker}
+    @atomic worker::Union{Nothing,Worker}
     result::Any
     @atomic waiter::Union{Nothing,Waiter}
     @atomic next::Union{Nothing,Task}
