@@ -27,7 +27,7 @@ test-nthreads-1 \
 test-nthreads-2 \
 test-nthreads-$(shell scripts/nthreads.sh)
 
-test-nthreads-%:
+test-nthreads-%: instantiate
 	@env | grep TEST_FUNCTION_RUNNER_JL
 	JULIA_NUM_THREADS=$* $(JULIA) test/runtests.jl
 
@@ -36,12 +36,12 @@ instantiate: test/Manifest.toml Manifest.toml
 test/Manifest.toml: test/Project.toml
 	JULIA_LOAD_PATH=@:@stdlib JULIA_PROJECT=test $(JULIA_CMD) \
 		-e 'using Pkg' \
-		-e 'Pkg.resolve()'
+		-e 'Pkg.instantiate()'
 
 Manifest.toml: Project.toml
 	JULIA_LOAD_PATH=@:@stdlib JULIA_PROJECT=. $(JULIA_CMD) \
 		-e 'using Pkg' \
-		-e 'Pkg.resolve()'
+		-e 'Pkg.instantiate()'
 
 repl:
 	JULIA_LOAD_PATH=$(JULIA_LOAD_PATH): \
