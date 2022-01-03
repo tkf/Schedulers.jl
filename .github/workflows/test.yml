@@ -43,13 +43,19 @@ jobs:
           name: codecov-umbrella
   check:
     needs: test
-    # For `jobs.<job_id>.needs`, see:
-    # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#jobsjob_idneeds
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs
+      - name: ""
+        run: |
+          gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
+            --jq '.jobs[] | .conclusion'
+
+          num_non_successes="$(
+            gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
+              --jq '[.jobs[] | .conclusion | select(. != "success")] | length' \
+          )"
+
+          [ "$num_non_successes" = 0 ]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: "Dummy step to wait for all tests to be successful"
-        run: "true"
+        shell: bash
