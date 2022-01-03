@@ -17,10 +17,10 @@ test: test-nthreads-2
 
 test-all: 
 	$(MAKE) test-all-nthreads
-	SCHEDULERS_JL_ENABLE_FULL_DEBUGGING=true $(MAKE) test-all-nthreads
-	SCHEDULERS_JL_ENABLE_RECORDING=true $(MAKE) test-all-nthreads
-	SCHEDULERS_JL_ENABLE_LOGGING=true $(MAKE) test-all-nthreads
-	SCHEDULERS_JL_ENABLE_DEBUGGING=true $(MAKE) test-all-nthreads
+	SCHEDULERS_JL_TEST_ENABLE=full $(MAKE) test-all-nthreads
+	SCHEDULERS_JL_TEST_ENABLE=recording $(MAKE) test-all-nthreads
+	SCHEDULERS_JL_TEST_ENABLE=logging $(MAKE) test-all-nthreads
+	SCHEDULERS_JL_TEST_ENABLE=debugging $(MAKE) test-all-nthreads
 
 test-all-nthreads: \
 test-nthreads-1 \
