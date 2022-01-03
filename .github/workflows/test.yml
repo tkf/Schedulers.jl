@@ -42,10 +42,26 @@ jobs:
           flags: Pkg.test
           name: codecov-umbrella
   check:
+    if: always() && github.event.pull_request
     needs: test
-    # For `jobs.<job_id>.needs`, see:
-    # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#jobsjob_idneeds
     runs-on: ubuntu-latest
     steps:
-      - name: "Dummy step to wait for all tests to be successful"
-        run: "true"
+      - name: "Dump jobs' conclusion"
+        run: |
+          gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
+            --jq '.jobs[] | { name, conclusion }'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+      - name: "Check test matrix"
+        run: |
+          num_non_successes="$(
+            gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
+              --jq '[.jobs[] | .conclusion | select(. != "success")] | length' \
+          )"
+
+          echo "num_non_successes = $num_non_successes"
+          [ "$num_non_successes" = 0 ]
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
