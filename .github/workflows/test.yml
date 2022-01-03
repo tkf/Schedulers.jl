@@ -41,3 +41,7 @@ jobs:
           file: ./lcov.info
           flags: Pkg.test
           name: codecov-umbrella
+  check:
+    needs: test
+    # For `jobs.<job_id>.needs`, see:
+    # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#jobsjob_idneeds
