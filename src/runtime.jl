@@ -471,8 +471,6 @@ function notifywaiters!(scheduler::AbstractScheduler, task::Task)
     @record(:notify_end, task = taskid(task))
 end
 
-const WAITER_REGISTERED_AFTER_FINISHED = Threads.Atomic{Bool}(false)
-
 function Base.fetch(task::GenericTask)
     Base.wait(task)
     return thunkof(task).result
