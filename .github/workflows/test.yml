@@ -47,5 +47,9 @@ jobs:
     # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#jobsjob_idneeds
     runs-on: ubuntu-latest
     steps:
+      - run: |
+          gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: "Dummy step to wait for all tests to be successful"
         run: "true"
