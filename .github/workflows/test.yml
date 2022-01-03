@@ -41,3 +41,11 @@ jobs:
           file: ./lcov.info
           flags: Pkg.test
           name: codecov-umbrella
+  check:
+    needs: test
+    # For `jobs.<job_id>.needs`, see:
+    # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#jobsjob_idneeds
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Dummy step to wait for all tests to be successful"
+        run: "true"
