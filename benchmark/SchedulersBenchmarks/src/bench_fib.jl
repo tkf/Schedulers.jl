@@ -27,10 +27,10 @@ function setup(; ns = [20])
     for n in ns
         sn = suite["n=$n"] = BenchmarkGroup()
         sn["scheduler=:workstealing"] = @benchmarkable Schedulers.global_workstealing() do
-            BaseFib.fib($n)
+            SchedulersFib.fib($n)
         end
         sn["scheduler=:prioritized"] = @benchmarkable Schedulers.global_prioritized() do
-            BaseFib.fib($n)
+            SchedulersFib.fib($n)
         end
         sn["scheduler=:base"] = @benchmarkable BaseFib.fib($n)
     end
