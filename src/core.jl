@@ -97,15 +97,16 @@ function as_priority(priority::Integer)
     return max(typemin(PriorityInt) + 1, priority)
 end
 
+struct Closed end
+
 mutable struct Thunk{Scheduler<:AbstractScheduler}
     @const f::OpaqueClosure{Tuple{}}
     @const scheduler::Scheduler
     priority::PriorityInt
     @atomic worker::Union{Nothing,Worker}
     result::Any
-    @atomic waiter::Union{Nothing,Waiter}
-    @atomic next::Union{Nothing,Task}
-    @atomic state::TaskStates.Kind
+    @atomic waiter::Union{Nothing,Closed,Waiter}
+    state::TaskStates.Kind
 
     Thunk{Scheduler}(
         @nospecialize(f),
@@ -115,7 +116,6 @@ mutable struct Thunk{Scheduler<:AbstractScheduler}
         f,
         scheduler,
         as_priority(priority),
-        nothing,
         nothing,
         nothing,
         nothing,
@@ -147,7 +147,7 @@ GenericTask(waiter::Waiter) = GenericTask(taskof(waiter))
 
 taskof(task::GenericTask) = task.task
 
-stateof(task) = @atomic thunkof(task).state
+stateof(task) = thunkof(task).state
 isfinished(state::TaskStates.Kind) = state == TaskStates.DONE || state == TaskStates.ERROR
 isfinished(task) = isfinished(stateof(task))
 

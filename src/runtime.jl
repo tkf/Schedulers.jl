@@ -195,7 +195,7 @@ function eventloop(scheduler::AbstractScheduler)
             elseif request isa Union{ReturnRequest,ExceptionRequest}
                 if request isa ExceptionRequest
                     # Let the native scheduler complete the `task`.
-                    # See also `_wait(task::GenericTask)`.
+                    # See also `Base.wait(task::GenericTask)`.
                     yield(task)
                 end
                 notifywaiters!(scheduler, task)
@@ -218,17 +218,17 @@ end
 function (thunk::Thunk)()
     try
         @record(:thunk_begin)
-        @atomic :monotonic thunk.state = TaskStates.STARTED
+        thunk.state = TaskStates.STARTED
         y = thunk.f()
         @record(:thunk_returning)
         thunk.result = y
-        @atomic :release thunk.state = TaskStates.DONE
+        thunk.state = TaskStates.DONE
         yieldto(taskof(thunk.worker), ReturnRequest())
     catch err
         # @error(:thunk_error, exception = (err, catch_backtrace()))
         @record(:thunk_error, exception = (err, catch_backtrace()))
         thunk.result = err
-        @atomic :release thunk.state = TaskStates.ERROR
+        thunk.state = TaskStates.ERROR
         yieldto(taskof(thunk.worker), ExceptionRequest())
         rethrow()
     end
@@ -365,38 +365,22 @@ function Schedulers.current_scheduler()
     return thunkof(task).scheduler
 end
 
-function _wait(task::GenericTask)
-    thunk = thunkof(task)
-    state = @atomic :monotonic thunk.state
-    if state == TaskStates.DONE
-        Threads.atomic_fence()
-        return state
-    elseif state == TaskStates.ERROR
-        Threads.atomic_fence()
-        return state
-    end
-    return nothing
-end
-
 function trywait(task::GenericTask)
-    thunk = thunkof(task)
-    @return_if_something _wait(task)
+    thunk::Thunk = thunkof(task)
+    head = @atomic thunk.waiter
+    head isa Closed && return thunk.state
 
     # Register the `current_task()` as a waiter of `task`
     waiter = Waiter()
     @DBG @check waiter.task === current_task()
     @DBG @check waiter.state == WaiterStates.INITIAL
-    head = @atomic :monotonic thunk.waiter
     while true
         waiter.next = head
         (head, ok) = @atomicreplace(thunk.waiter, head => waiter)
+        head isa Closed && return thunk.state
         ok && break
     end
     @record(:wait_register, node = objid(waiter))
-
-    @return_if_something _wait(task) begin
-        @check waiter.state in (WaiterStates.INITIAL, WaiterStates.DONTWAIT)
-    end
 
     @record(:wait_cas)
     # If the CAS is successful, there should be no yield point until
@@ -412,21 +396,7 @@ function trywait(task::GenericTask)
         @record(:wait_dontwait)
         @check state == WaiterStates.DONTWAIT
     end
-    @return_if_something _wait(task)
-
-    # Unreachable:
-    errorwith(;
-        task,
-        task_state = stateof(task),
-        waiter,
-    ) do io, (; task, task_state, waiter)
-        print(io, "FATAL: invalid state at the end of `wait(task)`")
-        print(io, "\n  task = ", task)
-        print(io, "\n  stateof(task) = ", task_state)
-        print(io, "\n  waiter.task (current task) = ", waiter.task)
-        print(io, "\n  waiter.state = ", waiter.state)
-    end
-    return
+    return thunk.state
 end
 
 function Base.wait(task::GenericTask)
@@ -457,7 +427,7 @@ function Base.wait(task::GenericTask)
 end
 
 function notifywaiters!(scheduler::AbstractScheduler, task::Task)
-    task_state = @atomic :monotonic thunkof(task).state
+    task_state = thunkof(task).state
     @record(:notify_begin, task = taskid(task), task_state)
     if !isfinished(task_state)
         errorwith(; scheduler, task, task_state) do io, (; task, task_state)
@@ -467,8 +437,7 @@ function notifywaiters!(scheduler::AbstractScheduler, task::Task)
         end
     end
     thunk = thunkof(task)
-    waiter::Union{Waiter,Nothing} = @atomic thunk.waiter
-    @atomic :monotonic thunk.waiter = nothing  # help GC
+    waiter::Union{Waiter,Nothing} = @atomicswap thunk.waiter = Closed()
     while true
         waiter === nothing && break
         state = @atomic :monotonic waiter.state
@@ -499,17 +468,10 @@ function notifywaiters!(scheduler::AbstractScheduler, task::Task)
         end
         waiter = waiter.next
     end
-    waiter = thunk.waiter
-    if waiter !== nothing
-        errorwith(; scheduler, task, waiter) do io, (; task, waiter)
-            print(io, "FATAL: a waiter is registered after the task is marked finished")
-            print(io, "\n  task = ", task)
-            print(io, "\n  stateof(task) = ", task_state)
-            print(io, "\n  waiter.task = ", waiter.task)
-        end
-    end
     @record(:notify_end, task = taskid(task))
 end
+
+const WAITER_REGISTERED_AFTER_FINISHED = Threads.Atomic{Bool}(false)
 
 function Base.fetch(task::GenericTask)
     Base.wait(task)
