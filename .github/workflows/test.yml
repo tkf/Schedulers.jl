@@ -42,6 +42,7 @@ jobs:
           flags: Pkg.test
           name: codecov-umbrella
   check:
+    if: always() && github.event.pull_request
     needs: test
     runs-on: ubuntu-latest
     steps:
