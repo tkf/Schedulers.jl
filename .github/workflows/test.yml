@@ -46,10 +46,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: ""
+      - name: "Check test matrix"
         run: |
           gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
-            --jq '.jobs[] | .conclusion'
+            --jq '.jobs[] | { name, conclusion }'
 
           num_non_successes="$(
             gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
