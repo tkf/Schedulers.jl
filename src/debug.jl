@@ -8,6 +8,6 @@ macro DBG(ex)
     end
 end
 
-isdebugging() = true  # TODO: flip
+isdebugging() = false
 enable_debug() = (@eval isdebugging() = true; nothing)
 disable_debug() = (@eval isdebugging() = false; nothing)
