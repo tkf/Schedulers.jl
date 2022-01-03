@@ -160,14 +160,26 @@ function eventloop(scheduler::AbstractScheduler)
         end
         nspins = 0
 
+        # Try to lock the task
+        _, ok = @atomicreplace(
+            :acquire_release,
+            :monotonic,
+            thunkof(task).worker,
+            nothing => worker
+        )
+        if !ok
+            push!(scheduler.externalqueue, task)
+            wakeall!(scheduler)
+            continue
+        end
+
         while true  # request-reply loop
             @DBG @check threadid == Threads.threadid()
             @record(:schedule, scheduler, task = Historic.taskid(task))
-            thunkof(task).worker = worker
             unset_threadid(task)
             @DBG @check Threads.threadid(task) == 0
             request = yieldto(task, RescheduleRequest())
-            thunkof(task).worker = nothing
+            @atomic :release thunkof(task).worker = nothing
             @record(:requested, scheduler, task = Historic.taskid(task), request)
             @DBG @check threadid == Threads.threadid()
             if request isa YieldRequest
