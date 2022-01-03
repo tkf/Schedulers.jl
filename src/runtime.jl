@@ -217,7 +217,14 @@ end
 
 function (thunk::Thunk)()
     try
+        copy_stack = current_task().sticky
+        current_task().sticky = true # always sticky wrt the native scheduler
         @record(:thunk_begin)
+        if copy_stack
+            msg = "Stack-copying not supported"
+            @error(msg)
+            error(msg)
+        end
         thunk.state = TaskStates.STARTED
         y = thunk.f()
         @record(:thunk_returning)

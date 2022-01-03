@@ -136,7 +136,9 @@ function generic_task(
     priority::Union{Integer,Nothing} = nothing,
 )
     thunk = ConcreteThunk(as_opaqueclosure(f)::OpaqueClosure{Tuple{}}, scheduler, priority)
-    return GenericTask(Task(thunk))
+    task = Task(thunk)
+    task.sticky = false  # will be flipped in `(::Thunk)()`
+    return GenericTask(task)
 end
 
 as_opaqueclosure(@nospecialize(f)) = @opaque () -> f()
