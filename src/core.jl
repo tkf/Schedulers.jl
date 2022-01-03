@@ -98,7 +98,7 @@ function as_priority(priority::Integer)
 end
 
 mutable struct Thunk{Scheduler<:AbstractScheduler}
-    @const f::Any
+    @const f::OpaqueClosure{Tuple{}}
     @const scheduler::Scheduler
     priority::PriorityInt
     worker::Union{Nothing,Worker}
@@ -131,11 +131,18 @@ struct GenericTask
     task::Task
 end
 
-generic_task(
+function generic_task(
     @nospecialize(f),
     scheduler::AbstractScheduler;
     priority::Union{Integer,Nothing} = nothing,
-) = GenericTask(Task(ConcreteThunk(f, scheduler, priority)))
+)
+    thunk = ConcreteThunk(as_opaqueclosure(f)::OpaqueClosure{Tuple{}}, scheduler, priority)
+    return GenericTask(Task(thunk))
+end
+
+as_opaqueclosure(@nospecialize(f)) = @opaque () -> f()
+as_opaqueclosure(f::OpaqueClosure) = f
+# TODO: transform the thunk to `OpaqueClosure` in a frontend macro
 
 GenericTask(waiter::Waiter) = GenericTask(taskof(waiter))
 
@@ -150,6 +157,7 @@ Base.istaskfailed(task::GenericTask) = stateof(task) == TaskStates.ERROR
 
 Historic.taskid(task::GenericTask) = Historic.taskid(task.task)
 Historic.taskid(waiter::Waiter) = Historic.taskid(waiter.task)
+Historic.taskid(worker::Worker) = Historic.taskid(worker.task)
 
 struct ThunkID
     uint::UInt

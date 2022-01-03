@@ -37,6 +37,7 @@ function Base.unlock(h::LockedMinHeap)
 end
 
 function Base.push!(h::LockedMinHeap, x)
+    @DBG @check h.getpriority(x) != typemax(prioritytype(h))
     push!(h.heap, x)
     @atomic :monotonic h.priority = h.getpriority(first(h.heap))
     return h
@@ -108,6 +109,10 @@ function trypop!(multiq::MultiQueue)
         end
         if trylock(h1)
             try
+                p1 = @atomic :monotonic h1.priority
+                if p1 == typemax(prioritytype(multiq))
+                    continue
+                end
                 return Some{eltype(h1)}(pop!(h1))
             finally
                 unlock(h1)
@@ -124,10 +129,15 @@ function trypop!(multiq::MultiQueue)
         end
         if trylock(h)
             try
+                p = @atomic :monotonic h.priority
+                if p == typemax(prioritytype(multiq))
+                    continue
+                end
                 return Some{eltype(h)}(pop!(h))
             finally
                 unlock(h)
             end
+        else
             lockfailed = true
         end
     end

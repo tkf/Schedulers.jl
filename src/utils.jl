@@ -18,6 +18,17 @@ boolean(b::Bool) = b
 boolean(::typeof(TRUE)) = true
 boolean(::typeof(FALSE)) = false
 
+macro return_if_something(ex, before_return = nothing)
+    quote
+        ans = $(esc(ex))
+        if ans === nothing
+        else
+            $(esc(before_return))
+            return something(ans)
+        end
+    end
+end
+
 function duplicated_items_in_sorted_iterable(xs)
     dups = nothing
     y = iterate(xs)
