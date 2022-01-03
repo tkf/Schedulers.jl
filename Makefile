@@ -31,7 +31,11 @@ test-nthreads-%: instantiate
 	@env | grep TEST_FUNCTION_RUNNER_JL
 	JULIA_NUM_THREADS=$* $(JULIA) test/runtests.jl
 
-instantiate: test/Manifest.toml Manifest.toml
+instantiate: \
+Manifest.toml \
+test/Manifest.toml \
+benchmark/SchedulersBenchmarks/Manifest.toml \
+test/SchedulersTests/Manifest.toml
 
 test/Manifest.toml: test/Project.toml
 	JULIA_LOAD_PATH=@:@stdlib JULIA_PROJECT=test $(JULIA_CMD) \
@@ -41,6 +45,23 @@ test/Manifest.toml: test/Project.toml
 Manifest.toml: Project.toml
 	JULIA_LOAD_PATH=@:@stdlib JULIA_PROJECT=. $(JULIA_CMD) \
 		-e 'using Pkg' \
+		-e 'Pkg.instantiate()'
+
+benchmark/SchedulersBenchmarks/Manifest.toml: \
+benchmark/SchedulersBenchmarks/Project.toml \
+Project.toml
+	JULIA_LOAD_PATH=@:@stdlib JULIA_PROJECT=benchmark/SchedulersBenchmarks $(JULIA_CMD) \
+		-e 'using Pkg' \
+		-e 'Pkg.develop(path = ".")' \
+		-e 'Pkg.instantiate()'
+
+test/SchedulersTests/Manifest.toml: \
+test/SchedulersTests/Project.toml \
+benchmark/SchedulersBenchmarks/Project.toml \
+Project.toml
+	JULIA_LOAD_PATH=@:@stdlib JULIA_PROJECT=test/SchedulersTests $(JULIA_CMD) \
+		-e 'using Pkg' \
+		-e 'Pkg.develop([PackageSpec(path = "."), PackageSpec(path = "benchmark/SchedulersBenchmarks")])' \
 		-e 'Pkg.instantiate()'
 
 repl:
