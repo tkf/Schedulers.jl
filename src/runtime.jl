@@ -10,6 +10,7 @@ function create_workers(threadids::AbstractVector{<:Integer}, schedulerref::Ref)
                 "Unexpected error from `eventloop($(schedulerref[]))`",
                 exception = (err, catch_backtrace())
             )
+            close(schedulerref[])
             rethrow()
         end
         @check 1 <= threadid <= Threads.nthreads()
@@ -50,8 +51,7 @@ schedulertypeof(::typeof(Schedulers.prioritized)) = PrioritizedScheduler
 (ctx::SchedulerContextFunction)(@nospecialize(f); options...) =
     Schedulers.open(f, ctx(; options...))
 
-function Base.run(scheduler::AbstractScheduler)
-    @record(:run_begin, scheduler)
+function start(scheduler::AbstractScheduler)
     unfair = nothing
     for (threadid, worker) in zip(scheduler.threadids, scheduler.workers)
         task = taskof(worker)
@@ -65,11 +65,13 @@ function Base.run(scheduler::AbstractScheduler)
         @check unfair.threadid == Threads.threadid()
         yield(unfair.task)
     end
-    waitall(
-        Iterators.map(taskof, scheduler.workers);
-        onerror = (_task, _err) -> close(scheduler),
-        logerror = "Unexpected exception from a worker",
-    )
+    return scheduler
+end
+
+function Base.run(scheduler::AbstractScheduler)
+    @record(:run_begin, scheduler)
+    start(scheduler)
+    waitall(Iterators.map(taskof, scheduler.workers);)
     @record(:run_end, scheduler)
     return
 end
@@ -220,15 +222,17 @@ function (thunk::Thunk)()
     end
 end
 
-function Schedulers.spawn(@nospecialize(f), options...)
+function Schedulers.spawn(@nospecialize(f); options...)
     scheduler = Schedulers.current_scheduler()
     task = generic_task(f, scheduler; options...)
+    @record(:spawn, task = taskid(task))
     schedule!(scheduler, task)
     return task
 end
 
-function Schedulers.spawn(@nospecialize(f), scheduler::AbstractScheduler, options...)
+function Schedulers.spawn(@nospecialize(f), scheduler::AbstractScheduler; options...)
     task = generic_task(f, scheduler; options...)
+    @record(:spawn_sch, task = taskid(task), scheduler)
     schedule!(scheduler, task, scheduler !== Schedulers.current_scheduler())
     return task
 end
@@ -288,6 +292,7 @@ end
 function wakeall!(scheduler::AbstractScheduler)
     for worker in scheduler.workers
         state = @atomic worker.state
+        @record(:wakeall_check, worker_state = state, task = taskid(worker))
         while state == WorkerStates.PREPARE_WAITING
             state, ok = @atomicreplace(
                 worker.state,
@@ -295,6 +300,7 @@ function wakeall!(scheduler::AbstractScheduler)
             )
             if ok
                 state = WorkerStates.NOTIFYING
+                @record(:wakeall_set_notifying, task = taskid(worker))
                 break
             end
         end
@@ -303,6 +309,7 @@ function wakeall!(scheduler::AbstractScheduler)
                 @atomicreplace(worker.state, WorkerStates.WAITING => WorkerStates.NOTIFYING)
             if ok
                 Base.schedule(worker.task)
+                @record(:wakeall_scheduled, task = taskid(worker))
                 state = WorkerStates.NOTIFYING
                 break
             end
@@ -322,10 +329,16 @@ function Schedulers.wait()
     return
 end
 
-function Schedulers.current_task()
+function maybe_current_task()
     task::Task = current_task()
+    isdefined(task, :code) || return nothing  # root task does not set it
     task.code isa ConcreteThunk && return GenericTask(task)
-    errorwith(; task = task) do io, (; task)
+    return nothing
+end
+
+function Schedulers.current_task()
+    @return_if_something maybe_current_task()
+    errorwith(; task = current_task()) do io, (; task)
         print(
             io,
             "Schedulers.current_task() is called from a task not scheduled with \
@@ -335,39 +348,27 @@ function Schedulers.current_task()
     end
 end
 
-Schedulers.current_scheduler() = thunkof(Schedulers.current_task()).scheduler
+function Schedulers.current_scheduler()
+    task = @something(maybe_current_task(), return nothing)
+    return thunkof(task).scheduler
+end
 
-function _wait(f, task::GenericTask, stage)
+function _wait(task::GenericTask)
     thunk = thunkof(task)
     state = @atomic :monotonic thunk.state
     if state == TaskStates.DONE
         Threads.atomic_fence()
-        f()
-        @record(:wait_done, task = taskid(task), stage)
-        return true
+        return state
     elseif state == TaskStates.ERROR
         Threads.atomic_fence()
-        f()
-        @record(:wait_error, task = taskid(task), stage)
-        # throw(thunk.result)
-        Base.wait(task.task)  # use `TaskFailedException` for better stack trace
-        threadid = Threads.threadid()
-        waiter = current_task()
-        msg = "thread=$threadid: Unreachable: `wait` did not throw"
-        @error msg waiter task
-        errorwith(; threadid, waiter, task) do io, (; waiter, task)
-            print(io, msg)
-            print(io, "\n  waiter = ", waiter)
-            print(io, "\n  task = ", task)
-        end
+        return state
     end
-    return false
+    return nothing
 end
 
-function Base.wait(task::GenericTask)
-    @record(:wait_task_begin, task = taskid(task))
+function trywait(task::GenericTask)
     thunk = thunkof(task)
-    _wait(donothing, task, :pre_check) && return
+    @return_if_something _wait(task)
 
     # Register the `current_task()` as a waiter of `task`
     waiter = Waiter()
@@ -381,10 +382,13 @@ function Base.wait(task::GenericTask)
     end
     @record(:wait_register, node = objid(waiter))
 
-    _wait(task, :post_prepare) do
+    @return_if_something _wait(task) begin
         @check waiter.state in (WaiterStates.INITIAL, WaiterStates.DONTWAIT)
-    end && return
+    end
 
+    @record(:wait_cas)
+    # If the CAS is successful, there should be no yield point until
+    # `Schedulers.wait()` yields.
     @yield_unsafe begin
         (state, ok) =
             @atomicreplace(waiter.state, WaiterStates.INITIAL => WaiterStates.WAITING)
@@ -393,12 +397,13 @@ function Base.wait(task::GenericTask)
         Schedulers.wait()
         @check waiter.state == WaiterStates.NOTIFYING
     else
+        @record(:wait_dontwait)
         @check state == WaiterStates.DONTWAIT
     end
-    finished = _wait(donothing, task, :final)
+    @return_if_something _wait(task)
 
-    @record(:wait_task_end, task = taskid(task), task_state = thunkof(task).state, finished)
-    finished || errorwith(;
+    # Unreachable:
+    errorwith(;
         task,
         task_state = stateof(task),
         waiter,
@@ -410,6 +415,33 @@ function Base.wait(task::GenericTask)
         print(io, "\n  waiter.state = ", waiter.state)
     end
     return
+end
+
+function Base.wait(task::GenericTask)
+    @record(:wait_task_begin, task = taskid(task))
+    state = trywait(task)
+    @record(:wait_task_end, task = taskid(task), task_state = thunkof(task).state, state)
+    if state == TaskStates.DONE
+        @record(:wait_done, task = taskid(task))
+        return
+    elseif state == TaskStates.DONE
+        @record(:wait_error, task = taskid(task))
+        # throw(thunk.result)
+        Base.wait(task.task)  # use `TaskFailedException` for better stack trace
+
+        # Unreachable:
+        threadid = Threads.threadid()
+        waiter = current_task()
+        msg = "thread=$threadid: Unreachable: `wait` did not throw"
+        @error msg waiter task
+        errorwith(; threadid, waiter, task) do io, (; waiter, task)
+            print(io, msg)
+            print(io, "\n  waiter = ", waiter)
+            print(io, "\n  task = ", task)
+        end
+    else
+        error("unreachable: invalid state returned from `trywait`", state)
+    end
 end
 
 function notifywaiters!(scheduler::AbstractScheduler, task::Task)
