@@ -46,16 +46,21 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: "Check test matrix"
+      - name: "Dump jobs' conclusion"
         run: |
           gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
             --jq '.jobs[] | { name, conclusion }'
-
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+      - name: "Check test matrix"
+        run: |
           num_non_successes="$(
             gh api repos/tkf/Schedulers.jl/actions/runs/${{ github.run_id }}/jobs \
               --jq '[.jobs[] | .conclusion | select(. != "success")] | length' \
           )"
 
+          echo "num_non_successes = $num_non_successes"
           [ "$num_non_successes" = 0 ]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
