@@ -26,6 +26,37 @@ end
 pushat!(scheduler::AbstractScheduler, _workerid::Integer, task::Task) =
     push!(scheduler, task)
 
+@inline function push_sticky!(scheduler::AbstractScheduler, task::Task)
+    issticky(task) || return nothing
+    threadid = Threads.threadid()
+    workerid = scheduler.workerindices[threadid]
+    workerid == 0 && errorwith(; scheduler, threadid, task) do io, _
+        print(io, "cannot push unmanaged sticky task")
+    end
+    push!(scheduler.stickyqueues[workerid], task)
+    return scheduler
+end
+
+@inline function get_next_task_common!(scheduler::AbstractScheduler)
+    stickyqueue = scheduler.stickyqueues[scheduler.workerindices[Threads.threadid()]]
+    @return_if_something maybepopfirst!(stickyqueue)
+    local task::Union{Nothing,Task} = nothing
+    wake = false
+    while true
+        task = @something(maybepopfirst!(scheduler.externalqueue), break)
+        if issticky(task)
+            push_sticky!(scheduler, task)
+            wake = true
+        end
+        break
+    end
+    if wake
+        # TODO: only wake relevant schedulers
+        wakeall!(scheduler)
+    end
+    return task
+end
+
 """
     taskof(thing) -> task::Core.Task
 
@@ -107,6 +138,7 @@ mutable struct Thunk{Scheduler<:AbstractScheduler}
     result::Any
     @atomic waiter::Union{Nothing,Closed,Waiter}
     state::TaskStates.Kind
+    sticky::Bool
 
     Thunk{Scheduler}(
         @nospecialize(f),
@@ -120,11 +152,13 @@ mutable struct Thunk{Scheduler<:AbstractScheduler}
         nothing,
         nothing,
         TaskStates.CREATED,
+        false,
     )
 end
 
 thunkof(tasklike) = taskof(tasklike).code::ConcreteThunk
 schedulerof(tasklike) = thunkof(tasklike).scheduler
+issticky(tasklike) = thunkof(tasklike).sticky
 
 struct GenericTask
     task::Task
