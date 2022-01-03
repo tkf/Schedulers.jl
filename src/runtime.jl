@@ -121,7 +121,7 @@ struct ExceptionRequest end
 function eventloop(scheduler::AbstractScheduler)
     @record(:eventloop_begin, scheduler)
     threadid = Threads.threadid()
-    worker = workerof(scheduler)
+    worker = scheduler.workers[scheduler.workerindices[Threads.threadid()]]
     @check current_task() === taskof(worker)
     @atomic worker.state = WorkerStates.ACTIVE
     unfairspins = max(0, scheduler.unfairspins)
@@ -337,7 +337,7 @@ function Schedulers.wait()
     end
     yieldto(scheduler_task(), WaitRequest())::RescheduleRequest
     @record(:wait_end, waiter_state = thunkof(current_task()).state)
-    @DBG @check Threads.threadid() == Threads.threadid(workerof(current_task()))
+    @DBG @check Threads.threadid() == Threads.threadid(scheduler_task())
     return
 end
 
