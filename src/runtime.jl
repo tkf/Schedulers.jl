@@ -424,7 +424,7 @@ function Base.wait(task::GenericTask)
     if state == TaskStates.DONE
         @record(:wait_done, task = taskid(task))
         return
-    elseif state == TaskStates.DONE
+    elseif state == TaskStates.ERROR
         @record(:wait_error, task = taskid(task))
         # throw(thunk.result)
         Base.wait(task.task)  # use `TaskFailedException` for better stack trace
@@ -440,7 +440,7 @@ function Base.wait(task::GenericTask)
             print(io, "\n  task = ", task)
         end
     else
-        error("unreachable: invalid state returned from `trywait`", state)
+        error("unreachable: invalid state returned from `trywait`: ", state)
     end
 end
 
