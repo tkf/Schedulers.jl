@@ -47,3 +47,4 @@ jobs:
     # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#jobsjob_idneeds
     steps:
       - name: "Dummy step to wait for all tests to be successful"
+        run: "true"
