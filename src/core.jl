@@ -16,12 +16,12 @@ function Base.close(scheduler::AbstractScheduler)
     return
 end
 
-scheduler_task() = taskof(thunkof(current_task()).worker::Worker)
-
-workerof(scheduler::AbstractScheduler) =
-    scheduler.workers[scheduler.workerindices[Threads.threadid()]]
-
-taskof(scheduler::AbstractScheduler) = taskof(workerof(scheduler))
+function scheduler_task()
+    thunk = thunkof(current_task())
+    worker = @atomic :monotonic thunk.worker
+    worker::Worker
+    return taskof(worker)
+end
 
 pushat!(scheduler::AbstractScheduler, _workerid::Integer, task::Task) =
     push!(scheduler, task)
@@ -124,7 +124,6 @@ mutable struct Thunk{Scheduler<:AbstractScheduler}
 end
 
 thunkof(tasklike) = taskof(tasklike).code::ConcreteThunk
-workerof(tasklike) = thunkof(tasklike).worker
 schedulerof(tasklike) = thunkof(tasklike).scheduler
 
 struct GenericTask
