@@ -5,6 +5,7 @@ mutable struct WorkStealingScheduler <: AbstractScheduler
     @const threadids::Vector{Int}
     @const workers::Vector{Worker}
     @const queues::Vector{WorkStealingDeque{Task}}
+    @const stickyqueues::Vector{ConcurrentQueue{Task}}
     @const externalqueue::ConcurrentQueue{Task}
     @atomic closed::Bool
 end
@@ -21,6 +22,7 @@ function WorkStealingScheduler(
     ref = Ref{WorkStealingScheduler}()
     workers = create_workers(threadids, ref)
     queues = [WorkStealingDeque{Task}() for _ in threadids]
+    stickyqueues = [ConcurrentQueue{Task}() for _ in threadids]
     scheduler = WorkStealingScheduler(
         unfairspins,
         yieldspins,
@@ -28,6 +30,7 @@ function WorkStealingScheduler(
         threadids,
         workers,
         queues,
+        stickyqueues,
         ConcurrentQueue{Task}(),
         false,
     )
@@ -36,6 +39,7 @@ function WorkStealingScheduler(
 end
 
 function Base.push!(scheduler::WorkStealingScheduler, task::Task)
+    @return_if_something push_sticky!(scheduler, task)
     threadid = Threads.threadid()
     workerid = scheduler.workerindices[threadid]
     workerid == 0 && errorwith(; scheduler, threadid) do io, (; scheduler, threadid)
@@ -54,11 +58,7 @@ function pushat!(scheduler::WorkStealingScheduler, workerid::Integer, task::Task
 end
 
 function get_next_task!(scheduler::WorkStealingScheduler, isretry::Bool)
-    let y = maybepopfirst!(scheduler.externalqueue)
-        if y isa Some
-            return something(y)::Task
-        end
-    end
+    @return_if_something get_next_task_common!(scheduler)
     threadid = Threads.threadid()
     workerid = scheduler.workerindices[threadid]
     if !isretry
